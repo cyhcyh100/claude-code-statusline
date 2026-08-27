@@ -109,9 +109,10 @@ session — no second restart.
 
 ### Auto-updates
 
-Enable in the `/plugin` UI for this marketplace (default on). For a private
-GitHub repo, Claude Code's startup auto-update runs **non-interactively**, so
-git credential helpers don't apply — set `GITHUB_TOKEN` in your shell rc:
+Enable in the `/plugin` UI for this marketplace (default on). Public repos
+need nothing else. If you fork this into a **private** repo, note that Claude
+Code's startup auto-update runs **non-interactively**, so git credential
+helpers don't apply — set `GITHUB_TOKEN` in your shell rc:
 
 ```bash
 # ~/.zshrc or ~/.bashrc

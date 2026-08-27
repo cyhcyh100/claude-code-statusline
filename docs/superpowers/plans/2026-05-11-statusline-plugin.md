@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and ship a private Claude Code statusline plugin (per `docs/superpowers/specs/2026-05-11-statusline-plugin-design.md`) that auto-updates from the team's GitHub marketplace.
+**Goal:** Build and ship a Claude Code statusline plugin (per `docs/superpowers/specs/2026-05-11-statusline-plugin-design.md`) that auto-updates from this repo's GitHub marketplace.
 
 **Architecture:** This repo doubles as a Claude Code plugin marketplace. The single `statusline` plugin contains a Node.js statusline script that reads `cwd`, `model`, `context_window` from stdin; runs `git`/`gh` for branch+PR; calls Anthropic's OAuth usage API for 5h/weekly quota; tail-scans the transcript JSONL for thinking/todos/skills/background tasks. Renders a 4-line (+ optional warning) statusline with ANSI colors and OSC 8 hyperlinks.
 
@@ -1398,7 +1398,7 @@ git add plugins/statusline/.claude-plugin/plugin.json plugins/statusline/README.
 git commit -m "$(cat <<'EOF'
 release: statusline plugin v1.0.0
 
-End-to-end verified against the spec §13 checklist. Ready for team
+End-to-end verified against the spec §13 checklist. Ready for
 install via `/plugin marketplace add cyhcyh100/claude-code-statusline`.
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>

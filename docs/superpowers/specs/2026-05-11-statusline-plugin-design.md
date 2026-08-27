@@ -3,7 +3,7 @@
 - **Date:** 2026-05-11
 - **Owner:** cyhcyh100
 - **Repo:** `cyhcyh100/claude-code-statusline` (GitHub)
-- **Distribution:** Private Claude Code plugin marketplace (this repo)
+- **Distribution:** Claude Code plugin marketplace (this repo)
 - **Status:** Implemented (`statusline-plugin-v1` branch, release `v1.0.0`). One PR ↔ one version.
 
 ---
@@ -24,7 +24,7 @@ Replace the OMC HUD statusline with a custom multi-line statusline that shows:
 10. **backgroundTasks** — running background bash/agent tasks
 11. **lastSkill / activeSkills** — most recent invoked skill
 
-Distributed as a **private Claude Code plugin** so the team gets auto-updates without `git pull` + reapply.
+Distributed as a **Claude Code plugin** so users get auto-updates without `git pull` + reapply.
 
 ## 2. Non-goals
 
