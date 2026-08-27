@@ -1,0 +1,64 @@
+{
+  "data": {
+    "r0": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 42,
+            "url": "https://github.com/example/alpha/pull/42",
+            "state": "OPEN",
+            "isDraft": false,
+            "mergedAt": null,
+            "updatedAt": "2026-05-12T10:00:00Z",
+            "headRefName": "main"
+          }
+        ]
+      }
+    },
+    "r1": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 17,
+            "url": "https://github.com/example/beta/pull/17",
+            "state": "OPEN",
+            "isDraft": true,
+            "mergedAt": null,
+            "updatedAt": "2026-05-12T11:00:00Z",
+            "headRefName": "fix-bug"
+          }
+        ]
+      }
+    },
+    "r2": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 5,
+            "url": "https://github.com/example/gamma/pull/5",
+            "state": "MERGED",
+            "isDraft": false,
+            "mergedAt": "2026-05-10T09:00:00Z",
+            "updatedAt": "2026-05-10T09:00:00Z",
+            "headRefName": "feature"
+          }
+        ]
+      }
+    },
+    "r3": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 99,
+            "url": "https://github.com/example/shared/pull/99",
+            "state": "CLOSED",
+            "isDraft": false,
+            "mergedAt": null,
+            "updatedAt": "2026-05-09T08:00:00Z",
+            "headRefName": "rename-foo"
+          }
+        ]
+      }
+    }
+  }
+}

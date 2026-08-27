@@ -1,0 +1,6 @@
+{
+  "cwd": "/tmp/example-project",
+  "model": { "id": "claude-opus-4-7", "display_name": "Opus 4.7" },
+  "context_window": { "context_window_size": 200000, "used_percentage": 47 },
+  "transcript_path": "./plugins/statusline/test-fixtures/transcript.jsonl"
+}

@@ -1,0 +1,11 @@
+{
+  "name": "claude-code-statusline",
+  "owner": { "name": "cyhcyh100" },
+  "plugins": [
+    {
+      "name": "statusline",
+      "source": "./plugins/statusline",
+      "description": "Custom statusline: branch, PR, 5h/weekly usage, context %, thinking, todos, skills, bg tasks"
+    }
+  ]
+}

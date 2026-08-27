@@ -1,0 +1,39 @@
+{
+  "data": {
+    "r0": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 2,
+            "url": "https://github.com/octocat/hello-world/pull/2",
+            "state": "MERGED",
+            "isDraft": false,
+            "mergedAt": "2026-05-11T09:05:01Z",
+            "updatedAt": "2026-05-11T09:05:01Z",
+            "headRefName": "add-verify-and-ci"
+          }
+        ]
+      }
+    },
+    "r1": {
+      "pullRequests": {
+        "nodes": [
+          {
+            "number": 1,
+            "url": "https://github.com/octocat/hello-world/pull/1",
+            "state": "MERGED",
+            "isDraft": false,
+            "mergedAt": "2026-05-11T06:34:00Z",
+            "updatedAt": "2026-05-11T06:34:00Z",
+            "headRefName": "statusline-plugin-v1"
+          }
+        ]
+      }
+    },
+    "r2": {
+      "pullRequests": {
+        "nodes": []
+      }
+    }
+  }
+}
