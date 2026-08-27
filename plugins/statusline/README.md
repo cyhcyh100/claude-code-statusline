@@ -1,242 +1,145 @@
-# statusline
+# statusline 플러그인 내부 문서
 
-Custom Claude Code statusline for personal use.
+이 디렉터리는 `claude-code-statusline` 마켓플레이스에 포함되는 실제 플러그인 루트입니다. 설치와 사용법은 저장소의 [메인 README](../../README.md)를 먼저 참고하세요. 이 문서는 유지보수에 필요한 설치 흐름, 런타임 구조, 캐시와 로컬 검증 방법을 설명합니다.
 
-Shows what you actually want to see during a session: where you are, what
-model you're using, your branch + open PR, your Anthropic quota, the
-context window, and what Claude is currently doing (thinking, todos, last
-skill, background tasks).
+## 빠른 설치
 
-## Example output
+Claude Code 안에서 다음 명령을 실행한 뒤 새 세션을 시작합니다.
 
-```
-~/work/project |  main | #42 (merged)
-🤖 Opus 4.7 | 5h:24%(2m) | wk:37%(2d20h) | ctx:41% | *thinking*
-▶ Build feature foo | ☐ Test foo | ☐ Document
-🔧 superpowers:brainstorming | ⚙ 2 bg
-```
-
-The ` | ` separator is dimmed so it groups segments without competing
-with the content.
-
-If context goes over 80% a warning banner appears as line 5:
-
-```
-⚠ Context at 82% — consider /compact
-```
-
-Sections auto-degrade when their inputs are missing — no errors, just
-fewer segments. Outside a git repo? branch + PR drop. No `gh`? PR drops.
-No OAuth creds? `5h` / `wk` drop. No active thinking? `*thinking*` drops. And so on.
-
-## What each segment means
-
-| Segment | Source | Notes |
-|---|---|---|
-| `~/path` cyan | stdin `cwd`, home-relativized | always shown |
-| `🤖 Opus 4.7` magenta | stdin `model.display_name` | always shown |
-| ` main` cyan | `git rev-parse --abbrev-ref HEAD` | git repos only |
-| `#42` green / `#42 (merged)` gray | `gh pr view --json number,url,state` (cached 60s per branch); OSC 8 hyperlink to the PR | hidden if `gh` missing, no remote, no auth, or no PR |
-| `5h:24%(2m)` | Anthropic OAuth API `/api/oauth/usage`, cached 90s; reset wrapped in dim parens | hidden if no Anthropic creds |
-| `wk:37%(2d20h)` | same API, weekly bucket | label dimmed (secondary signal) |
-| `ctx:41%` | stdin `context_window.used_percentage`, fallback computed | colored: green <70, yellow <85, red ≥85 |
-| `*thinking*` magenta | transcript JSONL scan: `thinking`/`reasoning` block within last 30s | hidden when inactive |
-| `▶ Build foo` yellow / `☐ Test foo` | latest `TodoWrite` tool_use in transcript; `▶` = in_progress, `☐` = pending; up to 5 + `… +N more` | hidden if no list / all completed |
-| `🔧 superpowers:foo` magenta | latest `Skill` tool_use in transcript | hidden if none |
-| `⚙ 2 bg` gray | count of `Bash` `run_in_background:true` tool_use blocks without a matching `tool_result` | hidden when 0 |
-| `⚠ Context at N% — consider /compact` | derived banner | shown when ctx ≥ 80; bold yellow at 80–89, bold red at ≥ 90 |
-
-## Multi-repo mode
-
-When `cwd` is **not** a git repo but its direct children **are** (e.g.
-`~/infra/` containing several service repos), the path + branch + PR
-line expands into a compact fleet summary so you can see every child
-repo's state at a glance.
-
-Example:
-
-```
-~/infra/ | 5 repos · 2 dirty · 2 open PRs · 1 draft
- alpha main!  #42  ·   beta fix-bug  ~#17  ·   shared rename!  #99✗
- gamma main  ·   old feature  #5✓
-```
-
-- **Trigger**: cwd is outside any git worktree AND has ≥ 2 direct
-  child directories that are git repos (regular repos, submodules, or
-  worktrees all qualify). Auto-detected — no config.
-- **Single child**: exactly 1 child repo falls back to single-repo
-  rendering against that child, with the parent path still shown.
-- **Opt-out**: set `STATUSLINE_MULTI_REPO=0` in your environment.
-- **Width**: Claude Code does not currently publish the statusline pane
-  width to its subprocess (no TTY, no `COLUMNS`), so the renderer
-  defaults to **80** columns. If your terminal is wider, set
-  `STATUSLINE_WIDTH=<cols>` (e.g. 160) in your shell rc so more repos
-  fit inline before the `…+N more` / `…+N quiet` overflow kicks in.
-
-PR badge legend:
-
-| Badge | State |
-|---|---|
-| `#42` green | open |
-| `~#17` yellow | draft |
-| `#5✓` gray | merged |
-| `#99✗` dim | closed (not merged) |
-
-`!` after the branch name means the working tree is dirty or
-ahead/behind the upstream.
-
-Repos sort by urgency: dirty + open PR first, then dirty + draft,
-dirty without PR, clean + open / draft, then quiet repos (merged →
-closed → no PR), alphabetical tiebreaker. The bottom "quiet" line
-overflows first when terminal width is tight, so the repos that need
-attention stay visible. PR data is one batched `gh api graphql` call
-cached 60s per parent directory.
-
-## Install
-
-Adds the marketplace once, installs the plugin, restart. That's it.
-
-```
+```text
 /plugin marketplace add cyhcyh100/claude-code-statusline
 /plugin install statusline@claude-code-statusline
 ```
 
-Restart Claude Code. On the next session start, an installer hook
-copies a small wrapper to `~/.claude/claude-code-statusline/` and patches
-your `~/.claude/settings.json` `statusLine.command`. Claude Code re-reads
-settings after hooks run, so the new statusline takes effect in the same
-session — no second restart.
+플러그인의 `SessionStart` 훅이 실행되어야 사용자 `statusLine.command`가 등록되므로 최초 설치 후에는 Claude Code를 한 번 재시작하는 것이 가장 확실합니다.
 
-### Auto-updates
+## 디렉터리 구조
 
-Enable in the `/plugin` UI for this marketplace (default on). Public repos
-need nothing else. If you fork this into a **private** repo, note that Claude
-Code's startup auto-update runs **non-interactively**, so git credential
-helpers don't apply — set `GITHUB_TOKEN` in your shell rc:
-
-```bash
-# ~/.zshrc or ~/.bashrc
-export GITHUB_TOKEN="$(gh auth token)"
+```text
+plugins/statusline/
+├── .claude-plugin/plugin.json  # 플러그인 이름, 버전, 작성자
+├── hooks/hooks.json            # SessionStart 설치 훅
+├── scripts/
+│   ├── install.mjs             # 사용자 설정과 wrapper 설치
+│   └── bootstrap.mjs           # 최신 캐시 버전 탐색·실행
+├── statusline/
+│   ├── find-node.sh            # Node.js 실행 파일 탐색
+│   ├── index.mjs               # 렌더러 진입점
+│   └── lib/                    # Git, PR, 사용량, transcript, layout 모듈
+├── test-fixtures/              # 결정적인 입력·응답 fixture
+└── tests/                      # node:test 단위 테스트
 ```
 
-When a new plugin version is released (the maintainer bumps `plugin.json`'s
-`version`), Claude Code re-extracts the new version into the plugin cache on
-next start, the wrapper picks it up automatically (it discovers the latest
-cached version at render time), and your statusline reflects the new code
-without any manual reapply.
+런타임 의존성은 Node.js 표준 라이브러리뿐이며 `npm install` 과정이나 `package.json`이 없습니다.
 
-### Manual refresh
+## 설치 흐름
 
-If auto-update is off or you want to pull a new version right now:
+Claude Code는 마켓플레이스 플러그인을 `~/.claude/plugins/cache/` 아래에 복사합니다. 이 플러그인은 manifest만으로 기본 status line을 등록하지 않고 다음 흐름을 사용합니다.
 
-```
-/plugin marketplace update claude-code-statusline
-/plugin install statusline@claude-code-statusline
-```
+1. `hooks/hooks.json`의 `SessionStart` 훅이 `scripts/install.mjs`를 실행합니다.
+2. 설치기는 `bootstrap.mjs`와 `find-node.sh`를 `<CLAUDE_CONFIG_DIR>/claude-code-statusline/`에 복사합니다.
+3. 사용자 `settings.json`의 `statusLine.command`를 복사된 wrapper를 실행하도록 변경합니다.
+4. wrapper는 렌더링할 때마다 `<CLAUDE_CONFIG_DIR>/plugins/cache/claude-code-statusline/statusline/`을 스캔하고 가장 높은 SemVer 버전의 `statusline/index.mjs`를 import합니다.
 
-Then restart.
+설치기는 플러그인 버전과 설치 파일을 확인하는 방식으로 멱등성을 유지합니다. 기존 `statusLine`이 이 플러그인의 것이 아니라면 `_statusLineBackup`에 보관합니다. 잘못된 JSON인 `settings.json`은 덮어쓰지 않습니다.
 
-### Local / dev install (for working on this plugin)
+## 렌더링 흐름
 
-If you have this repo checked out locally:
+`statusline/index.mjs`는 Claude Code가 stdin으로 전달한 JSON을 읽고 최대 8줄을 출력합니다.
 
-```
+1. `cwd`를 기준으로 기본 Git 모드 또는 멀티 저장소 모드를 선택합니다.
+2. Git 브랜치와 PR을 조회합니다.
+3. Claude OAuth 사용량을 조회합니다.
+4. transcript 마지막 64 KiB에서 thinking, todo, skill, 백그라운드 작업을 추출합니다.
+5. ANSI 색상과 OSC 8 링크를 적용하고 설정된 폭에 맞춰 줄을 자릅니다.
+
+각 데이터 소스의 실패는 출력 전체의 실패로 전파하지 않습니다. 최상위 렌더러도 예외를 삼켜 Claude Code UI에 오류 텍스트나 stack trace를 출력하지 않습니다.
+
+### 멀티 저장소 판정
+
+- 현재 `cwd`가 Git 저장소면 기본 모드를 사용합니다.
+- 현재 `cwd`는 저장소가 아니고 직속 하위 Git 저장소가 2개 이상이면 fleet 요약을 표시합니다.
+- 직속 하위 저장소가 1개면 부모 경로와 자식 저장소의 브랜치를 기본 형식으로 표시합니다.
+- `.git` 디렉터리뿐 아니라 submodule·worktree의 `.git` 포인터 파일도 인식합니다.
+- `STATUSLINE_MULTI_REPO=0`이면 이 판정을 건너뜁니다.
+
+멀티 저장소의 dirty/ahead/behind 정보는 각 저장소에 대해 `git status --porcelain=v2 --branch`를 병렬 실행해 계산합니다. PR은 GitHub `origin`을 해석할 수 있는 저장소만 모아 한 번의 `gh api graphql` 호출로 조회합니다.
+
+## 외부 데이터와 캐시
+
+기본 캐시 위치는 `~/.claude/claude-code-statusline/cache/`이며 `CLAUDE_CONFIG_DIR`을 설정하면 그 아래로 이동합니다.
+
+| 데이터 | 캐시 파일 | 정상 TTL | 실패 시 동작 |
+| --- | --- | --- | --- |
+| 5시간·주간 사용량 | `usage.json` | 90초 | 인증 15초, 네트워크 2분 후 재시도 |
+| 기본 모드 PR | `pr-<hash>.json` | 60초 | `gh` 사용 불가 시 5분 숨김 |
+| 멀티 저장소 목록 | `parent-repos-<hash>.json` | 부모 디렉터리 mtime 기준 | 읽기 실패 시 멀티 모드 생략 |
+| 저장소 dirty 상태 | `repo-status-<hash>.json` | 5초 | stale 값을 사용하며 백그라운드 갱신 |
+| 멀티 저장소 PR | `parent-prs-<hash>.json` | 60초 | 조회 실패 시 5분 숨김 |
+
+캐시는 삭제해도 다음 렌더링에서 다시 생성됩니다. OAuth access/refresh token과 transcript 본문은 캐시에 기록하지 않습니다.
+
+## 환경 변수
+
+| 변수 | 용도 |
+| --- | --- |
+| `STATUSLINE_WIDTH` | 렌더링 폭 강제 지정. 없으면 `COLUMNS`, 그마저 없으면 80열 |
+| `STATUSLINE_MULTI_REPO=0` | 멀티 저장소 모드 비활성화 |
+| `STATUSLINE_DEBUG=1` | 설치기와 wrapper가 삼킨 예외를 stderr로 출력 |
+| `CLAUDE_CONFIG_DIR` | `~/.claude` 대신 사용할 Claude 설정 루트 |
+| `STATUSLINE_MULTI_REPO_FORCE_FIXTURE` | 테스트에서만 사용하는 GraphQL 응답 fixture 경로 |
+
+마지막 변수는 개발·테스트 전용이므로 사용자 설정에 넣지 않습니다.
+
+## 로컬 개발
+
+### 마켓플레이스 설치
+
+Claude Code 안에서 저장소의 절대 경로를 추가합니다.
+
+```text
 /plugin marketplace add /absolute/path/to/claude-code-statusline
 /plugin install statusline@claude-code-statusline
 ```
 
-Local-path marketplaces don't auto-update — to pick up changes, bump
-`plugins/statusline/.claude-plugin/plugin.json` `version`, then re-run
-`/plugin install statusline@claude-code-statusline` and restart.
+로컬 마켓플레이스는 자동 업데이트되지 않습니다. 새 캐시 버전을 만들려면 `.claude-plugin/plugin.json`의 버전을 변경한 후 플러그인을 다시 설치해야 합니다. 버전 변경 정책은 [CONTRIBUTING.md](../../CONTRIBUTING.md)를 따릅니다.
 
-## How it works
+일회성 개발 세션에서는 Claude Code의 `--plugin-dir` 방식도 사용할 수 있습니다. 자세한 내용은 공식 [Plugins reference](https://code.claude.com/docs/en/plugins-reference)를 참고하세요.
 
-There's no plugin-manifest field for the main statusline in Claude Code, so
-this plugin uses a `SessionStart` hook (`hooks/hooks.json`) that runs
-`scripts/install.mjs` on every session start. The installer is idempotent
-(tracked via a `.installed` marker keyed on plugin version):
+### 직접 렌더링
 
-1. Copies `scripts/bootstrap.mjs` to `~/.claude/claude-code-statusline/bootstrap.mjs`.
-2. Copies `statusline/find-node.sh` so nvm/fnm users have a working shim.
-3. Patches `~/.claude/settings.json` `statusLine.command` to invoke the wrapper. Backs up any existing non-ours `statusLine` to `_statusLineBackup`.
+```sh
+node plugins/statusline/statusline/index.mjs \
+  < plugins/statusline/test-fixtures/stdin-basic.json
 
-The wrapper (`bootstrap.mjs`) is small: it scans
-`~/.claude/plugins/cache/claude-code-statusline/statusline/<version>/`
-on every render, picks the highest-version directory with a built
-`statusline/index.mjs`, and dynamically imports it. This is the same
-"wrapper-finds-cache" pattern OMC HUD uses, and it's why version bumps
-flow through automatically without re-patching your `settings.json`.
-
-## Requirements
-
-- **Node.js** — any recent version. nvm/fnm OK (`find-node.sh` handles location).
-- **`git`** — optional. branch hidden if missing or outside a repo.
-- **`gh` CLI** — optional. PR hidden if missing, no remote, or not authenticated.
-- **Anthropic OAuth credentials** — optional. Read from macOS Keychain
-  (service `Claude Code-credentials`) or `~/.claude/.credentials.json`.
-  Refreshed automatically when expired (`platform.claude.com`). Usage segments hidden if not present.
-- **macOS or Linux**. Windows not exercised in v1.
-
-## Cache
-
-`~/.claude/claude-code-statusline/cache/`:
-
-- `usage.json` — 5h + weekly OAuth usage. TTL 90s on success, 15s on auth/cred failure, 2min on network failure, exponential backoff on 429.
-- `pr-<sha256(branch)[:8]>.json` — per-branch PR result. TTL 60s for OK / 60s for "no PR" / 5min when `gh` is unavailable.
-
-Safe to delete; rebuilt on next render.
-
-## Debugging
-
-Statusline is silent by default per spec (must never `stderr` during normal
-operation). To surface installer/wrapper errors:
-
-```bash
-export STATUSLINE_DEBUG=1
+node plugins/statusline/statusline/index.mjs \
+  < plugins/statusline/test-fixtures/stdin-with-transcript.json
 ```
 
-Then watch Claude Code's startup output, or run the wrapper manually:
+설치된 wrapper까지 확인하려면 stdin JSON을 전달합니다.
 
-```bash
-echo '{"cwd":"/tmp"}' | STATUSLINE_DEBUG=1 sh ~/.claude/claude-code-statusline/find-node.sh ~/.claude/claude-code-statusline/bootstrap.mjs
+```sh
+printf '%s' '{"cwd":"/tmp","model":{"display_name":"Test"}}' \
+  | STATUSLINE_DEBUG=1 sh ~/.claude/claude-code-statusline/find-node.sh \
+      ~/.claude/claude-code-statusline/bootstrap.mjs
 ```
 
-You can also run the plugin directly against fixture stdin in this repo:
+### 전체 검증
 
-```bash
-cat plugins/statusline/test-fixtures/stdin-with-transcript.json \
-  | node plugins/statusline/statusline/index.mjs
+저장소 루트에서 다음 명령 하나를 사용합니다.
+
+```sh
+bash scripts/verify.sh
 ```
 
-## Uninstall
+검증 스크립트는 단위 테스트, 모든 `.mjs` 구문 검사, JSON 파싱, 기본·멀티 저장소 smoke test와 터미널 제어 문자 sanitization을 확인합니다. CI도 동일한 명령을 실행합니다.
 
-```
-/plugin uninstall statusline@claude-code-statusline
-```
+## 제거 시 주의
 
-The wrapper + patched `statusLine.command` in `~/.claude/settings.json`
-remain after uninstall. To fully remove:
+`/plugin uninstall statusline@claude-code-statusline`은 플러그인 등록만 제거합니다. 설치기가 만든 wrapper, 캐시, `settings.json`의 `statusLine`은 자동으로 되돌리지 않습니다. 전체 제거 절차는 [메인 README의 제거 섹션](../../README.md#제거)을 따르세요.
 
-```bash
-rm -rf ~/.claude/claude-code-statusline
-# Then edit ~/.claude/settings.json and either remove the `statusLine`
-# key entirely or restore from `_statusLineBackup` if you had a previous one.
-```
+## 관련 문서
 
-## For maintainers (release flow)
-
-1. Make changes on a branch.
-2. Bump `plugins/statusline/.claude-plugin/plugin.json` `version` (SemVer).
-   This is **required** for users to see the change — Claude Code skips
-   re-extraction when the cached version matches.
-3. Open a PR, merge to `main`.
-4. Users with `GITHUB_TOKEN` and auto-update on get the new version on next session start.
-
-To omit explicit version-pinning and have every commit count as a new
-version (handy during rapid iteration), remove the `version` field from
-`plugin.json` entirely; Claude Code will fall back to the git commit SHA.
-
-## Design
-
-Full design spec: `docs/superpowers/specs/2026-05-11-statusline-plugin-design.md`.
-Implementation plan: `docs/superpowers/plans/2026-05-11-statusline-plugin.md`.
+- 사용자 안내: [README.md](../../README.md)
+- 기여와 릴리스: [CONTRIBUTING.md](../../CONTRIBUTING.md)
+- 설계 기록 안내: [docs/README.md](../../docs/README.md)

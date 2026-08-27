@@ -1,5 +1,6 @@
 {
   "name": "claude-code-statusline",
+  "description": "Multi-line Claude Code status line with Git, PR, usage, context, task, and multi-repository summaries",
   "owner": { "name": "cyhcyh100" },
   "plugins": [
     {
